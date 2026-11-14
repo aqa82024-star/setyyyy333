@@ -36,8 +36,8 @@ nav{display:flex;gap:6px;margin-bottom:10px}nav button{flex:1;background:var(--c
 <section id="t0"><div class="card"><div class="row"><input id="q" placeholder="🔍 جستجو در پیام‌ها" oninput="renderChat()"></div><div id="msgs"></div>
 <div class="emo card" id="emo"></div>
 <div class="row"><input id="txt" placeholder="یه چیزی بنویس..." onkeydown="if(event.key=='Enter')send()"><button onclick="send()">➤</button></div>
-<div class="row"><button class="g" onclick="$('#emo').style.display=$('#emo').style.display=='block'?'none':'block'">😊</button><label><input type="checkbox" id="sec"> 🔒 محرمانه</label><input type="datetime-local" id="unl" title="کپسول زمانی: تا این زمان قفله"><button class="g" id="mic" onclick="rec()">🎤</button></div>
-<small>دوبار کلیک روی پیام = واکنش • کپسول زمانی: زمان رو انتخاب کن و بفرست</small></div></section>
+<div class="row"><button class="g" onclick="$('#emo').style.display=$('#emo').style.display=='block'?'none':'block'">😊</button><label><input type="checkbox" id="sec"> 🔒 محرمانه</label><input type="datetime-local" id="unl" title="کپسول زمانی: تا این زمان قفله"><button class="g" id="mic" onclick="rec()">🎤</button><label class="g" style="cursor:pointer;padding:9px 12px;border-radius:14px;background:var(--card)">📎<input type="file" accept="image/*,video/*" hidden onchange="sendMedia(this)"></label></div>
+<div class="row"><button class="g" onclick="clearMe()">🧹 پاک کردن فقط برای من</button><button class="g" onclick="clearAll()">🗑 پاک کردن برای هر دو</button></div><small>دوبار کلیک روی پیام = واکنش • کپسول زمانی: زمان رو انتخاب کن و بفرست</small></div></section>
 
 <section id="t1"><div class="card"><div class="row" id="gsel"></div><div id="game"></div></div><div class="card"><b>🏆 جدول امتیاز</b><div id="score"></div></div></section>
 
@@ -84,7 +84,7 @@ function merge(R){const t=T();t.ts=t.ts||{};t.msgs=t.msgs||{};
 const ROOM='q8k2m5x7r1',pid=w=>'ow-'+ROOM+'-'+w;
 function net(){if(typeof Peer=='undefined'){ST=' ⚪ آفلاین';return}
  const p=new Peer(pid(me));
- const add=c=>{c.on('open',()=>{conns.push(c);ST=' 🟢 وصل';c.send({hello:T()})});c.on('data',d=>{if(d.hello)merge(d.hello);else if(d.op)onOp(d.op)});c.on('close',()=>{conns=conns.filter(x=>x!=c);if(!conns.length)ST=' ⚪ منتظر اون'});c.on('error',()=>{})};
+ const add=c=>{c.on('open',()=>{conns.push(c);ST=' 🟢 وصل';c.send({hello:T()});bkeys().then(k=>c.send({have:k}))});c.on('data',d=>{if(d.hello)merge(d.hello);else if(d.op)onOp(d.op);else if(d.have)bkeys().then(async mine=>{for(const id of mine)if(!d.have.includes(id))c.send({blob:{id,data:await bget(id)}})});else if(d.blob)bput(d.blob.id,d.blob.data)});c.on('close',()=>{conns=conns.filter(x=>x!=c);if(!conns.length)ST=' ⚪ منتظر اون'});c.on('error',()=>{})};
  ST=' ⚪ منتظر اون';p.on('connection',add);p.on('error',e=>{if(e.type=='unavailable-id')ST=' ⚠️ این حساب جای دیگه بازه'});
  setInterval(()=>{if(p.disconnected)p.reconnect();if(!conns.some(c=>c.open)&&p.open)add(p.connect(pid(other(me)),{reliable:true}))},5000)}
 const db=async(p,m,b,q='')=>{if(FB=='LOCAL')return dbL(p,m,b);const r=await fetch(FB+'/'+p+'.json'+q,{method:m||'GET',body:b===undefined?undefined:JSON.stringify(b)});if(!r.ok)throw 0;return r.json()};
@@ -100,27 +100,29 @@ function start(){if(FB=='LOCAL')net();$('#login').hidden=true;$('#app').hidden=f
  $('#emo').innerHTML=['❤️','💖','😍','😘','🥰','😂','🥺','😭','🔥','✨','🌹','🎁','🦔','🐻','💋','🌙'].map(e=>`<span onclick="$('#txt').value+='${e}'">${e}</span>`).join('');
  tab(0);poll();setInterval(poll,3000);setInterval(tick,1000);}
 document.querySelectorAll('#nav button').forEach(b=>b.onclick=()=>tab(+b.dataset.t));
-function tab(i){document.querySelectorAll('section').forEach((s,j)=>s.classList.toggle('show',i==j));document.querySelectorAll('#nav button').forEach((b,j)=>b.classList.toggle('on',i==j))}
+function tab(i){setTimeout(()=>{if(i==0)acks()},300);document.querySelectorAll('section').forEach((s,j)=>s.classList.toggle('show',i==j));document.querySelectorAll('#nav button').forEach((b,j)=>b.classList.toggle('on',i==j))}
 let pc=0;
 async function poll(){try{const[m,k]=await Promise.all([db('msgs','GET',undefined,'?orderBy=%22$key%22&limitToLast=200'),db('kv')]);let al=D.kv.album;if(pc++%6==0)al=await db('album');
  const msgs=Object.entries(m||{}).map(([key,v])=>({...v,key})).sort((a,b)=>a.id-b.id),s=JSON.stringify([msgs.map(x=>x.key+(x.r||'')),k,al&&al.length]);
  $('#who').textContent=name(me)+(me=='artin'?' 💙':' 💖')+ST;
- if(s!=sig){sig=s;D={msgs,kv:{...(k||{}),album:al||[]}};render()}}catch(e){$('#who').textContent='⚠️ اتصال به فایربیس برقرار نیست'}}
+ if(s!=sig){sig=s;D={msgs,kv:{...(k||{}),album:al||[]}};render()}acks();purge()}catch(e){$('#who').textContent='⚠️ اتصال به فایربیس برقرار نیست'}}
 function render(){renderChat();renderGame();renderSurprise();renderMem()}
 /* ---- چت ---- */
-function renderChat(){const q=$('#q').value,box=$('#msgs'),atEnd=box.scrollTop+box.clientHeight>box.scrollHeight-60;box.innerHTML='';
- D.msgs.filter(m=>!q||(m.t||'').includes(q)).forEach(m=>{const d=E('div','msg '+m.from);let b;
+function renderChat(){if([...document.querySelectorAll('#msgs video')].some(v=>!v.paused&&!v.ended)){setTimeout(renderChat,2500);return}
+ const q=$('#q').value,box=$('#msgs'),atEnd=box.scrollTop+box.clientHeight>box.scrollHeight-60;box.innerHTML='';const w=K('wipe',null);if(w)box.appendChild(E('div','','<div style="text-align:center;font-size:12px;opacity:.7">🧹 '+name(w.by)+' مکالمه را پاک کرد</div>'));
+ D.msgs.filter(m=>m.id>CL()&&(!q||(m.t||'').includes(q))).forEach(m=>{const d=E('div','msg '+m.from);let b;
   if(m.unlock&&Date.now()<m.unlock)b='⏳ کپسول زمانی؛ باز می‌شه '+new Date(m.unlock).toLocaleString('fa-IR');
   else if(m.a)b='<button class="g" onclick="playV(\''+m.a+'\')">▶ پیام صوتی</button>';
+  else if(m.img||m.vid)b='<div class="md" data-i="'+(m.img||m.vid)+'" data-v="'+(m.vid?1:0)+'">⏳</div>';
   else b=m.sec?'<span class="sec">'+esc(m.t)+'</span> 🔒':esc(m.t);
-  d.innerHTML=b+'<small>'+new Date(m.id).toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'})+' '+(m.r||'')+'</small>';
+  d.innerHTML=b+'<small>'+new Date(m.id).toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit'})+' '+(m.r||'')+(m.from==me?' '+(m.s?'<b style="color:#2563eb">✓✓</b>':m.d?'✓✓':'✓'):'')+'</small>';
   d.ondblclick=()=>{const L=['❤️','😂','😍','🥺','👍',''],r=L[(L.indexOf(m.r||'')+1)%L.length];m.r=r;renderChat();m.key&&db('msgs/'+m.key,'PATCH',{r}).catch(()=>{})};
-  box.appendChild(d)});if(atEnd)box.scrollTop=box.scrollHeight}
+  box.appendChild(d)});fillMedia();if(atEnd)box.scrollTop=box.scrollHeight}
 function push(m){m.id=Date.now();m.from=me;D.msgs.push(m);renderChat();$('#msgs').scrollTop=1e9;db('msgs','POST',m).then(r=>{m.key=r.name}).catch(()=>alert('پیام ارسال نشد'))}
 function send(){const t=$('#txt').value.trim();if(!t)return;const m={t};if($('#sec').checked)m.sec=1;if($('#unl').value)m.unlock=new Date($('#unl').value).getTime();push(m);$('#txt').value='';$('#sec').checked=false;$('#unl').value=''}
 let mr,ch=[];async function rec(){try{if(mr&&mr.state=='recording'){mr.stop();$('#mic').textContent='🎤';return}
  const st=await navigator.mediaDevices.getUserMedia({audio:true});mr=new MediaRecorder(st);ch=[];mr.ondataavailable=e=>ch.push(e.data);
- mr.onstop=()=>{st.getTracks().forEach(t=>t.stop());const f=new FileReader();f.onload=async()=>{const id='v'+Date.now();try{await db('blobs/'+id,'PUT',f.result);push({a:id})}catch(e){alert('ارسال نشد')}};f.readAsDataURL(new Blob(ch,{type:mr.mimeType||'audio/webm'}))};mr.start();$('#mic').textContent='⏹';setTimeout(()=>{if(mr.state=='recording'){mr.stop();$('#mic').textContent='🎤'}},30000)}catch(e){alert('دسترسی میکروفون ممکن نشد (سایت باید HTTPS باشه)')}}
+ mr.onstop=()=>{st.getTracks().forEach(t=>t.stop());const f=new FileReader();f.onload=async()=>{const id='v'+Date.now();try{await putBlob(id,f.result);push({a:id})}catch(e){alert('ارسال نشد')}};f.readAsDataURL(new Blob(ch,{type:mr.mimeType||'audio/webm'}))};mr.start();$('#mic').textContent='⏹';setTimeout(()=>{if(mr.state=='recording'){mr.stop();$('#mic').textContent='🎤'}},30000)}catch(e){alert('دسترسی میکروفون ممکن نشد (سایت باید HTTPS باشه)')}}
 /* ---- بازی‌ها ---- */
 const G={ttt:'❌ دوز',c4:'🔴 چهار در ردیف',rps:'✊ سنگ‌کاغذ‌قیچی',mem:'🃏 حافظه',tod:'🎲 جرئت یا حقیقت',guess:'🔤 حدس کلمه',know:'🧠 چقدر منو می‌شناسی؟'};
 $('#gsel').innerHTML=Object.entries(G).map(([k,v])=>`<button class="g" onclick="gm='${k}';renderGame()">${v}</button>`).join('');
@@ -166,7 +168,7 @@ function renderMem(){$('#album').innerHTML=[{d:PH[1],c:'ستایش 💖',f:'seta
 function addDiary(){const t=$('#dtx').value.trim();if(!t)return;S('diary',[...K('diary',[]),{t,f:me,id:Date.now()}]);$('#dtx').value=''}
 function addPhoto(){const f=$('#pf').files[0];if(!f)return;const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),r=Math.min(1,700/im.width);c.width=im.width*r;c.height=im.height*r;c.getContext('2d').drawImage(im,0,0,c.width,c.height);S('album',[...K('album',[]),{d:c.toDataURL('image/jpeg',.7),c:$('#cap').value,f:me}]);$('#cap').value='';$('#pf').value=''};im.src=URL.createObjectURL(f)}
 
-async function playV(id){try{new Audio(await db('blobs/'+id)).play()}catch(e){alert('پخش نشد (شاید مرورگر این فرمت رو پشتیبانی نکنه)')}}
+async function playV(id){try{new Audio(await getBlob(id)).play()}catch(e){alert('پخش نشد (شاید مرورگر این فرمت رو پشتیبانی نکنه)')}}
 function openLetter(){const l=K('letter',null);if(!l)return;window.lo=1;$('#letter').innerHTML='<div id="paper" style="background:#f5e6c4;color:#4a3520;padding:16px;border-radius:6px;font-size:18px;line-height:2;white-space:pre-wrap;box-shadow:0 4px 14px #0006"></div>';let i=0;clearInterval(window.lt);window.lt=setInterval(()=>{$('#paper').textContent=l.t.slice(0,++i);if(i>=l.t.length)clearInterval(window.lt)},60)}
 function gGuess(){const g=K('wg',null);
  if(!g||g.done)return(g?`<div class="big">${g.win?'🎉 پیدا شد!':'😅 کلمه «'+esc(g.w)+'» بود'}</div>`:'')+'<div class="row"><input id="wgw" placeholder="کلمه‌ای برای اون یکی بنویس"><button onclick="wgSet()">بفرست</button></div>';
@@ -183,6 +185,38 @@ function gKnow(){const g=K('kn',null);
 function knSet(){const o=[0,1,2,3].map(i=>$('#k'+i).value.trim()),q=$('#kq').value.trim();if(!q||o.some(x=>!x))return alert('همه رو پر کن');const idx=[0,1,2,3].sort(()=>Math.random()-.5);S('kn',{q,by:me,o:idx.map(i=>o[i]),a:idx.indexOf(0)})}
 function knAns(i){const g=K('kn',null);g.done=1;g.ok=i==g.a;if(g.ok)addScore(me);S('kn',g)}
 $('#av').src=PH[1];
+
+/* ---- ذخیره‌ی عکس/فیلم/صدا (IndexedDB) ---- */
+const IDB=new Promise(r=>{try{const q=indexedDB.open('ow',1);q.onupgradeneeded=()=>q.result.createObjectStore('b');q.onsuccess=()=>r(q.result);q.onerror=()=>r(null)}catch(e){r(null)}});
+const bput=async(id,v)=>{const d=await IDB;if(!d)return;return new Promise(r=>{const t=d.transaction('b','readwrite');t.objectStore('b').put(v,id);t.oncomplete=r;t.onerror=r})};
+const bget=async id=>{const d=await IDB;if(!d)return null;return new Promise(r=>{const q=d.transaction('b').objectStore('b').get(id);q.onsuccess=()=>r(q.result??null);q.onerror=()=>r(null)})};
+const bkeys=async()=>{const d=await IDB;if(!d)return[];return new Promise(r=>{const q=d.transaction('b').objectStore('b').getAllKeys();q.onsuccess=()=>r(q.result);q.onerror=()=>r([])})};
+async function putBlob(id,d){if(FB=='LOCAL'){await bput(id,d);bc({blob:{id,data:d}})}else await db('blobs/'+id,'PUT',d)}
+async function getBlob(id){return FB=='LOCAL'?bget(id):db('blobs/'+id)}
+const MC={};
+async function fillMedia(){let pend=false;for(const el of document.querySelectorAll('#msgs .md')){const id=el.dataset.i,v=el.dataset.v=='1';let u=MC[id];
+ if(!u){const d=await getBlob(id);if(!d){el.textContent='⏳ در حال دریافت...';pend=true;continue}u=MC[id]=URL.createObjectURL(await(await fetch(d)).blob())}
+ el.innerHTML=v?'<video controls playsinline preload="metadata" src="'+u+'" style="max-width:100%;border-radius:12px"></video>':'<img src="'+u+'" style="max-width:100%;border-radius:12px" onclick="window.open(this.src)">'}
+ clearTimeout(window.fmT);if(pend)window.fmT=setTimeout(fillMedia,2500);else{const b=$('#msgs');b.scrollTop=b.scrollHeight}}
+function shrink(f){return new Promise((r,j)=>{const im=new Image();im.onload=()=>{const k=Math.min(1,1000/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*k;c.height=im.height*k;c.getContext('2d').drawImage(im,0,0,c.width,c.height);r(c.toDataURL('image/jpeg',.8))};im.onerror=j;im.src=URL.createObjectURL(f)})}
+async function sendMedia(inp){const f=inp.files[0];inp.value='';if(!f)return;
+ try{if(f.type.startsWith('image/')){const id='i'+Date.now();await putBlob(id,await shrink(f));push({img:id})}
+ else if(f.type.startsWith('video/')){if(f.size>10*1048576)return alert('فیلم باید کمتر از ۱۰ مگابایت باشه');
+  const d=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.readAsDataURL(f)});const id='m'+Date.now();await putBlob(id,d);push({vid:id})}}
+ catch(e){alert('ارسال نشد')}}
+/* ---- تیک‌ها: ✓ ارسال • ✓✓ رسید • ✓✓ آبی دیده شد ---- */
+function acks(){const seen=document.visibilityState=='visible'&&$('#t0').classList.contains('show');
+ D.msgs.forEach(m=>{if(m.from==me||!m.key)return;const p={};if(!m.d)p.d=1;if(seen&&!m.s)p.s=1;
+  if(Object.keys(p).length){Object.assign(m,p);db('msgs/'+m.key,'PATCH',p).catch(()=>{})}})}
+document.addEventListener('visibilitychange',()=>acks());
+
+/* ---- پاک کردن مکالمه ---- */
+const CL=()=>Math.max(+localStorage.clr||0,(K('wipe',null)||{}).ts||0);
+const bdel=async id=>{const d=await IDB;if(d)d.transaction('b','readwrite').objectStore('b').delete(id)};
+function clearMe(){if(confirm('مکالمه فقط برای خودت پاک بشه؟ اون هنوز پیام‌ها رو می‌بینه.')){localStorage.clr=Date.now();renderChat()}}
+function clearAll(){if(confirm('همه‌ی پیام‌ها برای هر دو نفر پاک بشن؟ این کار برگشت نداره.')){S('wipe',{ts:Date.now(),by:me});purge()}}
+function purge(){const w=K('wipe',null);if(!w)return;
+ D.msgs.filter(m=>m.id<=w.ts).forEach(m=>{const bid=m.img||m.vid||m.a;if(bid){if(FB=='LOCAL')bdel(bid);else db('blobs/'+bid,'PUT',null).catch(()=>{})}if(m.key)db('msgs/'+m.key,'PUT',null).catch(()=>{})})}
 /* ---- آسمان ستاره‌ای ---- */
 const cv=$('#sky'),cx=cv.getContext('2d');let st=[],mx=-1e3,my=-1e3;
 function rs(){cv.width=innerWidth;cv.height=innerHeight;st=Array.from({length:110},()=>({x:Math.random()*cv.width,y:Math.random()*cv.height,r:Math.random()*1.8+.3,s:Math.random()*.3+.05,dx:0,dy:0}))}rs();onresize=rs;
